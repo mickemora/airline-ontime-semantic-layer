@@ -1,5 +1,9 @@
 # Airline On-Time Semantic Layer
 
+![Business case and AWS technical architecture infographic](docs/airline-ontime-semantic-layer-infographic.svg)
+
+*Executive overview: business challenges, governed GraphQL metrics, AWS AppSync, DynamoDB, Lambda, S3, and business value. Demo uses synthetic flight data.*
+
 A small, realistic demo of **AWS AppSync as a semantic layer**. Consumers ask a
 business question — *"How reliable is this route, given my definition of on time?"* —
 in one GraphQL query, without knowing which store answers which part.
