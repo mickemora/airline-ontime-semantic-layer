@@ -1,6 +1,6 @@
 # Airline On-Time Semantic Layer
 
-![Business case and AWS technical architecture infographic](docs/airline-ontime-semantic-layer-infographic.svg)
+![Business case and AWS technical architecture infographic](docs/Airline On-Time Analytics Semantic Layer.png)
 
 *Executive overview: business challenges, governed GraphQL metrics, AWS AppSync, DynamoDB, Lambda, S3, and business value. Demo uses synthetic flight data.*
 
