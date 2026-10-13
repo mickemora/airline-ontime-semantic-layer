@@ -1,0 +1,64 @@
+# Paste these into the AppSync console query editor (Queries page),
+# or run them with scripts/query.py.
+
+# 1. Reference data only (DynamoDB): list United's routes
+query UnitedRoutes {
+  routes(carrier: "UA") {
+    routeId
+    originCity
+    destinationCity
+    distanceMiles
+    aircraftType
+    dailyFrequency
+  }
+}
+
+# 2. One query, two sources: route attributes from DynamoDB plus
+#    calculated performance from the Lambda reading S3
+query RouteWithPerformance {
+  route(routeId: "UA-ORD-LGA") {
+    routeId
+    carrierName
+    originCity
+    destinationCity
+    scheduledBlockMinutes
+    performance(month: "2026-08", thresholdMinutes: 15) {
+      flightsScheduled
+      flightsOnTime
+      onTimePct
+      cancellationPct
+      avgArrivalDelayMinutes
+      p90ArrivalDelayMinutes
+      definition
+    }
+  }
+}
+
+# 3. Same route, three definitions of "on time" side by side (aliases)
+query ThresholdComparison {
+  route(routeId: "UA-ORD-LGA") {
+    routeId
+    strict: performance(month: "2026-08", thresholdMinutes: 5) { onTimePct }
+    dot: performance(month: "2026-08", thresholdMinutes: 15) { onTimePct }
+    relaxed: performance(month: "2026-08", thresholdMinutes: 30) { onTimePct }
+  }
+}
+
+# 4. Network view: every route's July performance in one request
+query NetworkJuly {
+  routes {
+    routeId
+    performance(month: "2026-07") {
+      onTimePct
+      cancellationPct
+      p90ArrivalDelayMinutes
+    }
+  }
+}
+
+# 5. Validation: a month with no data returns a clear error
+query MissingMonth {
+  route(routeId: "AS-SEA-LAX") {
+    performance(month: "2025-01") { onTimePct }
+  }
+}

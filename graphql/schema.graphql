@@ -1,0 +1,77 @@
+"""
+Airline on-time performance semantic layer.
+
+Consumers ask for business concepts (routes, on-time performance) and never
+need to know where each answer comes from:
+  - Route attributes      -> DynamoDB (route reference data)
+  - Route.performance     -> Lambda, which calculates metrics from flight
+                             records stored in S3
+"""
+schema {
+  query: Query
+}
+
+type Query {
+  "A single route by its ID, e.g. UA-ORD-LGA (carrier-origin-destination)."
+  route(routeId: ID!): Route
+
+  "All routes, optionally limited to one carrier code (e.g. UA, AA, DL)."
+  routes(carrier: String): [Route!]!
+}
+
+"A scheduled nonstop route operated by one carrier."
+type Route {
+  routeId: ID!
+  carrier: String!
+  carrierName: String
+  origin: String!
+  originCity: String
+  destination: String!
+  destinationCity: String
+  distanceMiles: Int
+  "Scheduled gate-to-gate time in minutes."
+  scheduledBlockMinutes: Int
+  aircraftType: String
+  "Scheduled flights per day."
+  dailyFrequency: Int
+
+  """
+  On-time performance for one calendar month.
+
+  month: YYYY-MM, e.g. 2026-08.
+  thresholdMinutes: a flight is on time if it arrives less than this many
+  minutes after its scheduled arrival. The default of 15 matches the US DOT
+  definition. Allowed range: 1-180.
+  """
+  performance(month: String!, thresholdMinutes: Int = 15): RoutePerformance
+}
+
+"Governed on-time metrics for one route and month."
+type RoutePerformance {
+  routeId: ID!
+  month: String!
+  thresholdMinutes: Int!
+
+  "All flights scheduled in the month, including cancelled and diverted."
+  flightsScheduled: Int!
+  "Flights that arrived at their scheduled destination."
+  flightsArrived: Int!
+  flightsCancelled: Int!
+  flightsDiverted: Int!
+  "Arrived less than thresholdMinutes after scheduled arrival."
+  flightsOnTime: Int!
+
+  "flightsOnTime / flightsScheduled x 100. Cancellations and diversions count as not on time."
+  onTimePct: Float
+  "flightsCancelled / flightsScheduled x 100."
+  cancellationPct: Float
+  "Mean arrival delay of arrived flights in minutes (early arrivals are negative)."
+  avgArrivalDelayMinutes: Float
+  "Median arrival delay of arrived flights in minutes."
+  medianArrivalDelayMinutes: Float
+  "90th-percentile arrival delay of arrived flights in minutes."
+  p90ArrivalDelayMinutes: Float
+
+  "Plain-language definition of how these metrics were calculated."
+  definition: String!
+}
