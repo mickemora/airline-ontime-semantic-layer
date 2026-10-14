@@ -84,6 +84,23 @@ cdk deploy
 
 ## Try it
 
+**With the explorer (recommended for demos):**
+
+```bash
+python scripts/explorer.py
+```
+
+This opens a local web page at http://127.0.0.1:8765 where you can:
+
+- build a question with controls (route or whole network, month, on-time threshold, a 5/15/30-minute comparison) or pick one of the example queries, and edit the GraphQL freely
+- watch the request travel through an architecture diagram that lights up only the services the query touches
+- read a step-by-step explanation: the DynamoDB operation each resolver ran, how many times the Lambda was invoked and with which arguments, which S3 file it read, and the round-trip time
+- see real measurements pulled from CloudWatch: Lambda durations, cold starts, and whether S3 was read or the warm cache was used
+- inspect the answer, raw JSON, the exact HTTP request, and the actual resolver and Lambda code
+
+The explorer runs only on your machine and keeps the API key server-side. It uses your
+AWS credentials to read the stack outputs and the Lambda's CloudWatch logs. Stop it with Ctrl+C.
+
 **From the terminal:**
 
 ```bash
@@ -115,6 +132,8 @@ data/routes.json                    route reference data (seeded into DynamoDB)
 data/ontime/                        flight records (uploaded to S3)
 scripts/generate_sample_data.py     regenerates data/ontime
 scripts/query.py                    runs example queries against the deployed API
+scripts/explorer.py                 local web explorer server (UI + AppSync proxy + Lambda logs)
+ui/index.html                       the explorer UI
 tests/                              unit tests (calc, handler, data) and CDK assertions
 ```
 

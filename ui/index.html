@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route Reliability Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --concrete: #E6E8E4;
+  --panel: #FAFAF7;
+  --ink: #1E2226;
+  --muted: #5B636A;
+  --rule: #CBD0CA;
+  --sign: #FFC629;
+  --sign-ink: #1A1A1A;
+  --board: #23282D;
+  --board-line: #3A4148;
+  --board-text: #E8EBE6;
+  --board-muted: #98A1A8;
+  --appsync: #C21D6E;
+  --ddb: #3D4FD1;
+  --lambda: #D0620E;
+  --s3: #43851F;
+  --bad: #B3261E;
+  --bad-bg: #FBE9E7;
+  --good: #2F6B1A;
+  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--concrete);
+  color: var(--ink);
+  font: 16px/1.5 var(--font);
+}
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+code, pre, textarea.editor { font-family: var(--mono); }
+code { font-size: .875em; background: rgba(30,34,38,.07); padding: 1px 5px; border-radius: 3px; }
+
+/* ---------- Wayfinding header ---------- */
+.sign {
+  background: var(--sign);
+  color: var(--sign-ink);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 28px;
+  flex-wrap: wrap;
+}
+.sign-mark {
+  width: 46px; height: 46px; flex: none;
+  background: var(--sign-ink); color: var(--sign);
+  border-radius: 6px;
+  display: grid; place-items: center;
+}
+.sign h1 { margin: 0; font-size: 1.75rem; line-height: 1.1; letter-spacing: -.01em; }
+.sign p { margin: 2px 0 0; font-size: .95rem; }
+.conn { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; font-size: .85rem; }
+.chip {
+  border: 2px solid var(--sign-ink);
+  border-radius: 999px;
+  padding: 2px 12px;
+  white-space: nowrap;
+}
+.chip.off { border-style: dashed; }
+
+.banner {
+  margin: 16px 28px 0;
+  padding: 12px 16px;
+  background: var(--bad-bg);
+  border-left: 5px solid var(--bad);
+  border-radius: 4px;
+}
+.banner[hidden] { display: none; }
+
+/* ---------- Layout ---------- */
+main {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 20px 28px 40px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.panel > h2, .panel-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.ask { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; align-self: start; }
+.right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.bottom { grid-column: 1 / -1; min-width: 0; }
+
+/* ---------- Ask panel ---------- */
+.seg {
+  display: inline-flex;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+.seg button {
+  border: 0; background: transparent; padding: 6px 16px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .field > .label { font-weight: 700; font-size: .95rem; }
+.field .hint { color: var(--muted); font-size: .85rem; margin: 0; }
+select, input[type="text"] {
+  border: 1px solid #A9B0A9; border-radius: 6px; background: #fff;
+  padding: 8px 10px; width: 100%;
+}
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.radio-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.radio-row label, .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--ink); width: 18px; height: 18px; }
+
+.threshold-out { font-size: 2.25rem; font-weight: 700; line-height: 1; }
+.threshold-out small { font-size: 1rem; font-weight: 400; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--ink); }
+.ticks { display: flex; gap: 6px; flex-wrap: wrap; }
+.ticks button {
+  border: 1px solid #A9B0A9; background: #fff; border-radius: 999px;
+  padding: 2px 12px; cursor: pointer; font-size: .875rem;
+}
+.ticks button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
+.ticks .dot-label { font-size: .8rem; color: var(--muted); align-self: center; }
+.is-disabled { opacity: .45; pointer-events: none; }
+
+.examples { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.examples button {
+  width: 100%; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid #C2C8C1; border-radius: 6px;
+  padding: 10px 12px;
+}
+.examples button:hover { border-color: var(--ink); }
+.examples button[aria-pressed="true"] { border: 2px solid var(--ink); padding: 9px 11px; }
+.examples strong { display: block; }
+.examples span { color: var(--muted); font-size: .875rem; }
+
+.editor-wrap { display: flex; flex-direction: column; gap: 6px; }
+.editor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.editor-head span { color: var(--muted); font-size: .8rem; }
+textarea.editor {
+  width: 100%; min-height: 260px; resize: vertical;
+  font-size: 13px; line-height: 1.55;
+  background: var(--board); color: var(--board-text);
+  border: 0; border-radius: 6px; padding: 12px 14px;
+  tab-size: 2; white-space: pre;
+}
+.run-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-run {
+  background: var(--sign); color: var(--sign-ink);
+  border: 2px solid var(--sign-ink); border-radius: 6px;
+  padding: 10px 22px; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+}
+.btn-run:hover { background: #FFD45E; }
+.btn-run[disabled] { opacity: .6; cursor: progress; }
+.run-row .check { font-size: .9rem; }
+
+/* ---------- Board (diagram) ---------- */
+.board {
+  background: var(--board);
+  color: var(--board-text);
+  border-radius: 8px;
+  padding: 16px 18px 12px;
+}
+.board-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.board-head h2 { margin: 0; font-size: 1.15rem; }
+.board-status { color: var(--board-muted); font-size: .9rem; }
+.board-status b { color: var(--sign); font-weight: 700; }
+#diagram { width: 100%; height: auto; display: block; margin-top: 6px; }
+#diagram .edge { fill: none; stroke: var(--board-line); stroke-width: 3; }
+#diagram .edge.on { stroke: var(--sign); }
+#diagram .node rect.box { fill: #2C3238; stroke: var(--board-line); stroke-width: 2; }
+#diagram .node.on rect.box { stroke: var(--svc); stroke-width: 3; fill: #30373E; }
+#diagram .node .bar { fill: var(--svc); }
+#diagram .node text { fill: var(--board-text); font-family: var(--font); }
+#diagram .node .sub { fill: var(--board-muted); font-size: 12px; }
+#diagram .node .title { font-size: 17px; font-weight: 700; }
+#diagram .node.dim { opacity: .32; }
+#diagram .node.waiting rect.box { animation: wait 1s ease-in-out infinite alternate; }
+@keyframes wait { from { stroke: var(--board-line); } to { stroke: var(--sign); } }
+#diagram .badge rect { fill: var(--sign); }
+#diagram .badge text { fill: var(--sign-ink); font: 700 12px var(--font); }
+#diagram .edge-label { fill: var(--board-muted); font: 12px var(--font); }
+#diagram .pulse { fill: var(--sign); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: .8rem; color: var(--board-muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+/* ---------- Trace ---------- */
+.trace { padding: 18px 20px 8px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.panel-head .meta { color: var(--muted); font-size: .9rem; }
+.empty { color: var(--muted); padding: 8px 0 16px; max-width: 60ch; }
+ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
+ol.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: 2px 0 18px 54px;
+}
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 700; color: #fff; background: var(--svc, var(--ink));
+}
+ol.steps > li:not(:last-child)::after {
+  content: ""; position: absolute; left: 16px; top: 38px; bottom: 4px;
+  width: 2px; background: var(--rule);
+}
+ol.steps > li.error::before { background: var(--bad); }
+.step-title { font-weight: 700; font-size: 1.05rem; margin: 4px 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.svc-tag { font-size: .78rem; font-weight: 700; color: var(--svc); border: 1.5px solid var(--svc); border-radius: 4px; padding: 0 6px; }
+.step-body { max-width: 75ch; }
+.step-body p { margin: 0 0 6px; }
+.step-body .outcome { font-weight: 700; }
+.step-body .err { color: var(--bad); }
+.step-body .pending { color: var(--muted); font-style: italic; }
+.step-body .measured { border-left: 3px solid var(--sign); padding-left: 10px; margin: 8px 0; }
+.linkish {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: .9rem;
+}
+table.inv { border-collapse: collapse; font-size: .875rem; margin: 6px 0 8px; width: 100%; max-width: 640px; }
+table.inv th, table.inv td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid #E1E4DF; vertical-align: top; }
+table.inv th { color: var(--muted); font-weight: 400; }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- Bottom tabs ---------- */
+.tabs { display: flex; gap: 4px; padding: 10px 12px 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tabs button {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 10px 14px; border-bottom: 3px solid transparent; white-space: nowrap;
+}
+.tabs button[aria-selected="true"] { border-bottom-color: var(--ink); font-weight: 700; }
+.tabpanel { padding: 18px 20px 22px; }
+.tabpanel[hidden] { display: none; }
+pre.code {
+  margin: 0; background: var(--board); color: var(--board-text);
+  border-radius: 6px; padding: 14px 16px; overflow: auto;
+  font-size: 12.5px; line-height: 1.6; max-height: 560px;
+}
+pre.code .ln { color: #6C757D; user-select: none; display: inline-block; width: 3.2em; }
+.file-pick { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.file-pick button {
+  border: 1px solid #A9B0A9; background: #fff; border-radius: 6px; padding: 4px 10px;
+  cursor: pointer; font-family: var(--mono); font-size: .8rem;
+}
+.file-pick button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.file-note { color: var(--muted); font-size: .9rem; margin: 0 0 10px; }
+
+/* ---------- Answer ---------- */
+.route-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.route-head h3 { margin: 0; font-size: 1.6rem; letter-spacing: -.01em; }
+.route-head .cities { color: var(--muted); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; border-top: 2px solid var(--ink); }
+.kpi { padding: 12px 16px 14px 0; border-bottom: 1px solid var(--rule); }
+.kpi .v { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.kpi .v.hero { font-size: 3rem; }
+.kpi .k { color: var(--muted); font-size: .9rem; }
+.def { margin: 14px 0 0; padding: 10px 14px; border-left: 4px solid var(--lambda); background: #F3F0EA; max-width: 80ch; font-size: .95rem; }
+.def b { display: block; margin-bottom: 2px; }
+.compare { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 4px; max-width: 760px; }
+.cmp-row { display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; align-items: center; }
+.cmp-row .lbl { font-weight: 700; }
+.cmp-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+.track { height: 26px; background: #E3E6E1; border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; background: var(--ink); border-radius: 4px 0 0 4px; }
+.cmp-row .num { font-weight: 700; font-size: 1.15rem; text-align: right; }
+table.data { border-collapse: collapse; width: 100%; font-size: .95rem; }
+table.data th, table.data td { padding: 8px 12px 8px 0; border-bottom: 1px solid #E1E4DF; text-align: left; white-space: nowrap; }
+table.data th { font-weight: 700; border-bottom: 2px solid var(--ink); }
+table.data td.n, table.data th.n { text-align: right; }
+.mini { display: inline-block; width: 90px; height: 10px; background: #E3E6E1; border-radius: 2px; margin-left: 8px; vertical-align: 0; overflow: hidden; }
+.mini b { display: block; height: 100%; background: var(--ink); }
+.errbox { background: var(--bad-bg); border-left: 5px solid var(--bad); padding: 12px 16px; border-radius: 4px; margin-bottom: 12px; }
+.errbox p { margin: 0 0 4px; }
+.errbox .where { color: var(--muted); font-size: .9rem; }
+.req-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; color: var(--muted); font-size: .9rem; }
+.req-meta b { color: var(--ink); }
+.cold { color: var(--lambda); font-weight: 700; }
+
+@media (max-width: 980px) {
+  main { grid-template-columns: 1fr; padding: 16px; }
+  .sign { padding: 12px 16px; }
+  .banner { margin: 12px 16px 0; }
+  .conn { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .sign h1 { font-size: 1.35rem; }
+  .row2 { grid-template-columns: 1fr; }
+  .cmp-row { grid-template-columns: 96px 1fr 56px; }
+  ol.steps > li { padding-left: 46px; }
+  .tabpanel, .trace, .ask { padding-left: 14px; padding-right: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #diagram .node.waiting rect.box { animation: none; stroke: var(--sign); }
+}
+</style>
+</head>
+<body>
+
+<header class="sign">
+  <div class="sign-mark" aria-hidden="true">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15.5v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V8.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5l8 2.5z"/></svg>
+  </div>
+  <div>
+    <h1>Route reliability explorer</h1>
+    <p>Ask the semantic layer a question and watch how AWS answers it.</p>
+  </div>
+  <div class="conn" id="conn"><span class="chip off">Connecting…</span></div>
+</header>
+<div class="banner" id="banner" role="alert" hidden></div>
+
+<main>
+  <!-- ======================= Ask ======================= -->
+  <section class="panel ask" aria-labelledby="ask-h">
+    <h2 id="ask-h">Ask a question</h2>
+    <div class="seg" role="group" aria-label="How to build the query">
+      <button type="button" id="mode-guided" aria-pressed="true">Build it</button>
+      <button type="button" id="mode-examples" aria-pressed="false">Examples</button>
+    </div>
+
+    <div id="guided" class="guided" style="display:flex;flex-direction:column;gap:16px">
+      <div class="field">
+        <span class="label" id="scope-l">Scope</span>
+        <div class="radio-row" role="radiogroup" aria-labelledby="scope-l">
+          <label><input type="radio" name="scope" value="route" checked> One route</label>
+          <label><input type="radio" name="scope" value="network"> Whole network</label>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field" id="route-field">
+          <label for="route">Route</label>
+          <select id="route"><option>Loading routes…</option></select>
+        </div>
+        <div class="field" id="carrier-field" style="display:none">
+          <label for="carrier">Carrier</label>
+          <select id="carrier"><option value="">All carriers</option></select>
+        </div>
+        <div class="field">
+          <label for="month">Month</label>
+          <select id="month"></select>
+        </div>
+      </div>
+      <div class="field" id="threshold-field">
+        <label for="threshold">On time means arriving within</label>
+        <div class="threshold-out" aria-live="polite"><span id="threshold-val">15</span> <small>minutes of schedule</small></div>
+        <input type="range" id="threshold" min="1" max="60" value="15">
+        <div class="ticks" id="ticks">
+          <button type="button" data-v="5">5 min</button>
+          <button type="button" data-v="15" aria-pressed="true">15 min</button>
+          <button type="button" data-v="30">30 min</button>
+          <span class="dot-label">15 is the US DOT standard</span>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="compare"> Compare 5, 15 and 30 minutes in one request</label>
+    </div>
+
+    <div id="examples-pane" style="display:none">
+      <ul class="examples" id="examples"><li class="empty">Loading examples…</li></ul>
+    </div>
+
+    <div class="editor-wrap">
+      <div class="editor-head">
+        <label for="editor"><b>GraphQL query</b></label>
+        <span>Edit freely. Ctrl or ⌘ + Enter runs it.</span>
+      </div>
+      <textarea id="editor" class="editor" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    </div>
+    <div class="run-row">
+      <button type="button" class="btn-run" id="run">Run query</button>
+      <label class="check" id="auto-wrap"><input type="checkbox" id="auto" checked> Run when I change a setting</label>
+    </div>
+  </section>
+
+  <!-- ======================= Board + trace ======================= -->
+  <div class="right">
+    <section class="board" aria-labelledby="board-h">
+      <div class="board-head">
+        <h2 id="board-h">Where the request goes</h2>
+        <div class="board-status" id="board-status" aria-live="polite">Run a query to light up the path.</div>
+      </div>
+      <svg id="diagram" viewBox="0 0 1000 330" role="img" aria-label="Architecture: client, AppSync, DynamoDB, Lambda and S3">
+        <path class="edge" id="e-client-appsync" d="M180,165 L330,165"/>
+        <path class="edge" id="e-appsync-ddb" d="M510,150 C570,150 570,75 630,75"/>
+        <path class="edge" id="e-appsync-lambda" d="M510,180 C570,180 570,255 630,255"/>
+        <path class="edge" id="e-lambda-s3" d="M810,255 L850,255"/>
+        <text class="edge-label" x="255" y="152" text-anchor="middle">HTTPS POST</text>
+        <text class="edge-label" x="500" y="95">JS resolver</text>
+        <text class="edge-label" x="488" y="250">direct resolver</text>
+
+        <g class="node" id="n-client" style="--svc:#E8EBE6">
+          <rect class="box" x="20" y="125" width="160" height="80" rx="8"/>
+          <text class="title" x="40" y="160">Explorer</text>
+          <text class="sub" x="40" y="182">your browser</text>
+        </g>
+        <g class="node" id="n-appsync" style="--svc:var(--appsync)">
+          <rect class="box" x="330" y="115" width="180" height="100" rx="8"/>
+          <rect class="bar" x="330" y="115" width="8" height="100" rx="3"/>
+          <text class="title" x="352" y="150">AppSync</text>
+          <text class="sub" x="352" y="172">semantic layer</text>
+          <text class="sub" x="352" y="192">schema + resolvers</text>
+        </g>
+        <g class="node" id="n-ddb" style="--svc:var(--ddb)">
+          <rect class="box" x="630" y="35" width="180" height="80" rx="8"/>
+          <rect class="bar" x="630" y="35" width="8" height="80" rx="3"/>
+          <text class="title" x="652" y="68">DynamoDB</text>
+          <text class="sub" x="652" y="90" id="ddb-sub">routes table</text>
+        </g>
+        <g class="node" id="n-lambda" style="--svc:var(--lambda)">
+          <rect class="box" x="630" y="215" width="180" height="80" rx="8"/>
+          <rect class="bar" x="630" y="215" width="8" height="80" rx="3"/>
+          <text class="title" x="652" y="248">Lambda</text>
+          <text class="sub" x="652" y="270">performance calc</text>
+        </g>
+        <g class="node" id="n-s3" style="--svc:var(--s3)">
+          <rect class="box" x="850" y="215" width="130" height="80" rx="8"/>
+          <rect class="bar" x="850" y="215" width="8" height="80" rx="3"/>
+          <text class="title" x="872" y="248">S3</text>
+          <text class="sub" x="872" y="270">flight records</text>
+        </g>
+
+        <g class="badge" id="b-ddb" visibility="hidden"><rect x="740" y="20" width="0" height="22" rx="11"/><text x="0" y="35"></text></g>
+        <g class="badge" id="b-lambda" visibility="hidden"><rect x="740" y="200" width="0" height="22" rx="11"/><text x="0" y="215"></text></g>
+        <g class="badge" id="b-s3" visibility="hidden"><rect x="900" y="200" width="0" height="22" rx="11"/><text x="0" y="215"></text></g>
+        <g class="badge" id="b-appsync" visibility="hidden"><rect x="420" y="100" width="0" height="22" rx="11"/><text x="0" y="115"></text></g>
+        <g id="pulses"></g>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--appsync)"></i>AppSync: one API, business vocabulary</span>
+        <span><i style="background:var(--ddb)"></i>DynamoDB: route reference data</span>
+        <span><i style="background:var(--lambda)"></i>Lambda: governed metric logic</span>
+        <span><i style="background:var(--s3)"></i>S3: historical flights</span>
+      </div>
+    </section>
+
+    <section class="panel trace" aria-labelledby="trace-h">
+      <div class="panel-head">
+        <h2 id="trace-h">What happened, step by step</h2>
+        <span class="meta" id="trace-meta"></span>
+      </div>
+      <div id="trace"><p class="empty">Each step of the next query will appear here: which resolver ran, what it asked DynamoDB, how many times the Lambda was called, which S3 file it read, and how long it all took.</p></div>
+    </section>
+  </div>
+
+  <!-- ======================= Bottom tabs ======================= -->
+  <section class="panel bottom" aria-label="Results and details">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="answer">Answer</button>
+      <button role="tab" aria-selected="false" data-tab="json">Response JSON</button>
+      <button role="tab" aria-selected="false" data-tab="http">HTTP request</button>
+      <button role="tab" aria-selected="false" data-tab="logs">Lambda logs</button>
+      <button role="tab" aria-selected="false" data-tab="code">Code behind it</button>
+    </div>
+    <div class="tabpanel" id="tab-answer" role="tabpanel"><p class="empty">The answer appears here, shaped exactly like the query asked for it.</p></div>
+    <div class="tabpanel" id="tab-json" role="tabpanel" hidden><p class="empty">Run a query to see the raw GraphQL response.</p></div>
+    <div class="tabpanel" id="tab-http" role="tabpanel" hidden><p class="empty">Run a query to see the HTTP call made to AppSync.</p></div>
+    <div class="tabpanel" id="tab-logs" role="tabpanel" hidden><p class="empty">After a query calls the Lambda, its CloudWatch log lines appear here: one row per invocation, with duration, cold starts and whether S3 was read.</p></div>
+    <div class="tabpanel" id="tab-code" role="tabpanel" hidden>
+      <p class="file-note">This is the code deployed by the CDK stack, read straight from the repository.</p>
+      <div class="file-pick" id="file-pick"></div>
+      <pre class="code" id="code-view">Pick a file.</pre>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   State and helpers
+   ===================================================================== */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n, d = 1) => (n === null || n === undefined ? "–" : Number(n).toFixed(d));
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + "s")}`;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SOURCE_FILES = [
+  "graphql/schema.graphql",
+  "resolvers/getRoute.js",
+  "resolvers/listRoutes.js",
+  "lambda/performance/handler.py",
+  "lambda/performance/calc.py",
+  "airline_semantic_layer/stack.py",
+];
+const state = { cfg: null, examples: [], routes: [], runId: 0, codeFile: SOURCE_FILES[0], sources: {}, mode: "guided" };
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let body;
+  try { body = JSON.parse(text); } catch { body = text; }
+  if (!res.ok) throw new Error((body && body.error) || `${res.status} ${res.statusText}`);
+  return body;
+}
+function showBanner(html) { const b = $("#banner"); b.innerHTML = html; b.hidden = false; }
+
+/* =====================================================================
+   Minimal GraphQL parser (enough to explain the query; AppSync does the
+   real validation)
+   ===================================================================== */
+function tokenize(src) {
+  const toks = []; let i = 0;
+  const nameRe = /[_A-Za-z][_0-9A-Za-z]*/y, numRe = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "#") { while (i < src.length && src[i] !== "\n") i++; continue; }
+    if (/[\s,﻿]/.test(c)) { i++; continue; }
+    if (src.startsWith("...", i)) { toks.push({ t: "p", v: "..." }); i += 3; continue; }
+    if ("{}():$!=@[]|&".includes(c)) { toks.push({ t: "p", v: c }); i++; continue; }
+    if (c === '"') {
+      if (src.startsWith('"""', i)) {
+        const end = src.indexOf('"""', i + 3);
+        if (end < 0) throw new Error("Unterminated block string");
+        toks.push({ t: "s", v: src.slice(i + 3, end) }); i = end + 3; continue;
+      }
+      let j = i + 1, out = "";
+      while (j < src.length && src[j] !== '"') {
+        if (src[j] === "\n") throw new Error("Unterminated string");
+        if (src[j] === "\\") {
+          const n = src[j + 1];
+          if (n === "u") { out += String.fromCharCode(parseInt(src.substr(j + 2, 4), 16)); j += 6; continue; }
+          out += ({ n: "\n", t: "\t", r: "\r", b: "\b", f: "\f" })[n] ?? n; j += 2; continue;
+        }
+        out += src[j++];
+      }
+      if (j >= src.length) throw new Error("Unterminated string");
+      toks.push({ t: "s", v: out }); i = j + 1; continue;
+    }
+    numRe.lastIndex = i; let m = numRe.exec(src);
+    if (m) { toks.push({ t: "n", v: Number(m[0]) }); i += m[0].length; continue; }
+    nameRe.lastIndex = i; m = nameRe.exec(src);
+    if (m) { toks.push({ t: "name", v: m[0] }); i += m[0].length; continue; }
+    throw new Error(`Unexpected character "${c}"`);
+  }
+  return toks;
+}
+
+function parseQuery(src) {
+  const toks = tokenize(src); let p = 0, hasFragments = false;
+  const peek = () => toks[p];
+  const isP = (v) => toks[p] && toks[p].t === "p" && toks[p].v === v;
+  const isName = () => toks[p] && toks[p].t === "name";
+  const expectP = (v) => { if (!isP(v)) throw new Error(`Expected "${v}"`); p++; };
+  const name = () => { const t = toks[p++]; if (!t || t.t !== "name") throw new Error("Expected a field name"); return t.v; };
+  function value() {
+    const t = peek(); if (!t) throw new Error("Unexpected end of query");
+    if (isP("$")) { p++; return { $var: name() }; }
+    if (t.t === "n" || t.t === "s") { p++; return t.v; }
+    if (t.t === "name") { p++; return t.v === "true" ? true : t.v === "false" ? false : t.v === "null" ? null : t.v; }
+    if (isP("[")) { p++; const a = []; while (!isP("]")) a.push(value()); p++; return a; }
+    if (isP("{")) { p++; const o = {}; while (!isP("}")) { const k = name(); expectP(":"); o[k] = value(); } p++; return o; }
+    throw new Error("Unexpected token in an argument value");
+  }
+  function args() { const a = {}; if (isP("(")) { p++; while (!isP(")")) { const k = name(); expectP(":"); a[k] = value(); } p++; } return a; }
+  function directives() { while (isP("@")) { p++; name(); args(); } }
+  function typeRef() { if (isP("[")) { p++; typeRef(); expectP("]"); } else name(); if (isP("!")) p++; }
+  function selectionSet() {
+    expectP("{"); const fields = [];
+    while (!isP("}")) {
+      if (!peek()) throw new Error("Missing closing brace");
+      if (isP("...")) {
+        p++; hasFragments = true;
+        if (isName() && peek().v === "on") { p++; name(); }
+        else if (isName()) { name(); directives(); continue; }
+        directives(); if (isP("{")) fields.push(...selectionSet()); continue;
+      }
+      let n = name(); const alias = n;
+      if (isP(":")) { p++; n = name(); }
+      const a = args(); directives();
+      const f = { alias, name: n, args: a, fields: null };
+      if (isP("{")) f.fields = selectionSet();
+      fields.push(f);
+    }
+    p++; return fields;
+  }
+  let opType = "query", opName = null;
+  if (isName()) {
+    opType = name();
+    if (isName()) opName = name();
+    if (isP("(")) { p++; while (!isP(")")) { expectP("$"); name(); expectP(":"); typeRef(); if (isP("=")) { p++; value(); } directives(); } p++; }
+    directives();
+  }
+  const fields = selectionSet();
+  return { opType, opName, fields, hasFragments };
+}
+
+/* =====================================================================
+   Guided query builder
+   ===================================================================== */
+const PERF_FIELDS = ["flightsScheduled", "flightsOnTime", "onTimePct", "cancellationPct", "avgArrivalDelayMinutes", "p90ArrivalDelayMinutes"];
+
+function guidedQuery() {
+  const scope = $('input[name="scope"]:checked').value;
+  const month = $("#month").value;
+  const thr = Number($("#threshold").value);
+  const compare = $("#compare").checked;
+  const ind = (n) => " ".repeat(n);
+  const perfBlock = (depth, fields) => {
+    if (compare) {
+      return [5, 15, 30].map((t) =>
+        `${ind(depth)}within${t}: performance(month: "${month}", thresholdMinutes: ${t}) {\n${ind(depth + 2)}${fields.join(`\n${ind(depth + 2)}`)}\n${ind(depth)}}`).join("\n");
+    }
+    return `${ind(depth)}performance(month: "${month}", thresholdMinutes: ${thr}) {\n${ind(depth + 2)}${fields.join(`\n${ind(depth + 2)}`)}\n${ind(depth)}}`;
+  };
+  if (scope === "route") {
+    const routeId = $("#route").value;
+    const fields = compare ? ["flightsOnTime", "flightsScheduled", "onTimePct"] : [...PERF_FIELDS, "definition"];
+    return `query RoutePerformance {\n  route(routeId: "${routeId}") {\n    routeId\n    carrierName\n    origin\n    destination\n    originCity\n    destinationCity\n${perfBlock(4, fields)}\n  }\n}`;
+  }
+  const carrier = $("#carrier").value;
+  const fields = compare ? ["onTimePct"] : ["onTimePct", "cancellationPct", "p90ArrivalDelayMinutes", "flightsScheduled"];
+  const argStr = carrier ? `(carrier: "${carrier}")` : "";
+  return `query NetworkPerformance {\n  routes${argStr} {\n    routeId\n    carrierName\n    origin\n    destination\n${perfBlock(4, fields)}\n  }\n}`;
+}
+
+let autoTimer = null;
+function onGuidedChange({ run = true } = {}) {
+  const scope = $('input[name="scope"]:checked').value;
+  $("#route-field").style.display = scope === "route" ? "" : "none";
+  $("#carrier-field").style.display = scope === "network" ? "" : "none";
+  const thr = $("#threshold").value;
+  $("#threshold-val").textContent = thr;
+  $$("#ticks button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === thr)));
+  $("#threshold-field").classList.toggle("is-disabled", $("#compare").checked);
+  $("#editor").value = guidedQuery();
+  if (run && $("#auto").checked) { clearTimeout(autoTimer); autoTimer = setTimeout(runQuery, 350); }
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  $("#mode-guided").setAttribute("aria-pressed", String(mode === "guided"));
+  $("#mode-examples").setAttribute("aria-pressed", String(mode === "examples"));
+  $("#guided").style.display = mode === "guided" ? "flex" : "none";
+  $("#examples-pane").style.display = mode === "examples" ? "" : "none";
+  $("#auto-wrap").style.display = mode === "guided" ? "" : "none";
+  if (mode === "guided") onGuidedChange({ run: false });
+}
+
+function renderExamples() {
+  const ul = $("#examples");
+  ul.innerHTML = state.examples.map((ex, i) =>
+    `<li><button type="button" data-i="${i}" aria-pressed="false"><strong>${esc(ex.name.replace(/([a-z])([A-Z])/g, "$1 $2"))}</strong><span>${esc(ex.description)}</span></button></li>`).join("");
+  $$("button", ul).forEach((b) => b.addEventListener("click", () => {
+    $$("button", ul).forEach((x) => x.setAttribute("aria-pressed", "false"));
+    b.setAttribute("aria-pressed", "true");
+    $("#editor").value = state.examples[Number(b.dataset.i)].query;
+    runQuery();
+  }));
+}
+
+/* =====================================================================
+   Running a query
+   ===================================================================== */
+async function runQuery() {
+  const query = $("#editor").value.trim();
+  if (!query) return;
+  const runId = ++state.runId;
+  let ast = null, parseError = null;
+  try { ast = parseQuery(query); } catch (e) { parseError = e.message; }
+
+  $("#run").disabled = true;
+  $("#run").textContent = "Running…";
+  resetDiagram();
+  $("#n-client").classList.add("on");
+  $("#n-appsync").classList.add("waiting");
+  $("#board-status").textContent = "Waiting for AppSync…";
+
+  let res;
+  try {
+    res = await api("/api/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+  } catch (e) {
+    res = { status: 0, elapsedMs: null, startedAt: Date.now(), response: { errors: [{ message: e.message }] }, transportError: true };
+  }
+  if (runId !== state.runId) return;
+  $("#run").disabled = false;
+  $("#run").textContent = "Run query";
+  $("#n-appsync").classList.remove("waiting");
+
+  const trace = buildTrace(ast, parseError, res);
+  state.last = { query, res, trace, ast };
+  renderTrace(trace);
+  renderAnswer(ast, res);
+  renderJSON(res);
+  renderHTTP(query, res);
+  animate(trace, runId);
+  if (trace.invocations.length && state.cfg && state.cfg.logGroup) pollLogs(runId, res.startedAt, trace);
+  else if (trace.invocations.length) renderLogsUnavailable();
+}
+
+/* =====================================================================
+   Trace: explain what the backend did
+   ===================================================================== */
+function samePath(a, b) { return a.length === b.length && a.every((x, i) => String(x) === String(b[i])); }
+
+function buildTrace(ast, parseError, res) {
+  const cfg = state.cfg || {};
+  const resp = res.response || {};
+  const data = resp.data || null;
+  const errors = resp.errors || [];
+  const steps = [];
+  const invocations = [];
+  const ddbOps = [];
+  const months = new Set();
+  const trace = { steps, invocations, ddbOps, months, errors, elapsedMs: res.elapsedMs, ok: true };
+
+  const roots = (ast ? ast.fields : []).filter((f) => !f.name.startsWith("__"));
+  const rootList = roots.map((f) => `<code>${esc(f.alias !== f.name ? f.alias + ": " + f.name : f.name)}</code>`).join(", ");
+
+  /* Step: AppSync */
+  const s1 = { svc: "appsync", tag: "AppSync", title: "AppSync receives the request and checks it against the schema", body: [], code: "graphql/schema.graphql" };
+  s1.body.push(`<p>The explorer sends one HTTPS POST to the GraphQL endpoint, authenticated with the API key. AppSync parses the query and validates every field and argument against the schema: the business vocabulary of routes and on-time performance.</p>`);
+  if (res.transportError) {
+    s1.status = "error";
+    s1.body.push(`<p class="err">The request did not reach AppSync: ${esc(errors[0].message)}</p>`);
+    steps.push(s1); trace.ok = false; return trace;
+  }
+  if (!data && errors.length) {
+    s1.status = "error";
+    s1.body.push(`<p class="err outcome">AppSync rejected the query before running any resolver, so DynamoDB, Lambda and S3 were never touched.</p>`);
+    s1.body.push(errors.map((e) => `<p class="err">${esc(e.message)}</p>`).join(""));
+    steps.push(s1); trace.ok = false; trace.rejected = true; return trace;
+  }
+  if (parseError || !ast) {
+    s1.body.push(`<p class="outcome">AppSync accepted it, but the explorer couldn't parse the query locally (${esc(parseError || "unknown")}), so the steps below are incomplete. See Response JSON.</p>`);
+    steps.push(s1); return trace;
+  }
+  s1.body.push(`<p class="outcome">Valid. Top-level fields: ${rootList}.</p>`);
+  if (ast.hasFragments) s1.body.push(`<p>This query uses fragments; the explorer's step breakdown ignores fields inside named fragments.</p>`);
+  steps.push(s1);
+
+  /* Steps: DynamoDB, one per root field */
+  for (const rf of roots) {
+    const val = data ? data[rf.alias] : undefined;
+    let items = [];
+    if (rf.name === "route") {
+      const key = rf.args.routeId;
+      const keyStr = key && key.$var ? "$" + key.$var : JSON.stringify(key);
+      ddbOps.push("GetItem");
+      items = val ? [val] : [];
+      steps.push({
+        svc: "ddb", tag: "DynamoDB", code: "resolvers/getRoute.js",
+        title: "Query.route reads the route from DynamoDB",
+        body: [
+          `<p>The JavaScript resolver <code>getRoute.js</code> runs inside AppSync and sends a <code>GetItem</code> with key <code>{ routeId: ${esc(keyStr)} }</code> to the table <code>${esc(cfg.tableName || "routes")}</code>. This is a single-digit-millisecond key lookup.</p>`,
+          val ? `<p class="outcome">Found the route${val.origin && val.destination ? `: ${esc(val.carrierName || val.carrier || "")} ${esc(val.origin)} to ${esc(val.destination)}` : typeof key === "string" ? ` ${esc(key)}` : ""}.</p>`
+              : `<p class="outcome">No item with that key, so AppSync returns <code>null</code> and skips every field underneath it, including the Lambda.</p>`,
+        ],
+        status: val ? "ok" : "warn",
+      });
+    } else if (rf.name === "routes") {
+      const carrier = rf.args.carrier;
+      const op = carrier ? "Query" : "Scan";
+      ddbOps.push(op);
+      items = Array.isArray(val) ? val : [];
+      steps.push({
+        svc: "ddb", tag: "DynamoDB", code: "resolvers/listRoutes.js",
+        title: "Query.routes reads routes from DynamoDB",
+        body: [
+          carrier
+            ? `<p>The resolver <code>listRoutes.js</code> runs a <code>Query</code> on the <code>byCarrier</code> index where carrier = <code>${esc(typeof carrier === "string" ? carrier.toUpperCase() : "$" + carrier.$var)}</code>, so DynamoDB reads only that carrier's items.</p>`
+            : `<p>No carrier filter, so <code>listRoutes.js</code> runs a <code>Scan</code> of <code>${esc(cfg.tableName || "routes")}</code>. That's fine for a small reference table; a large one would use a query on an index instead.</p>`,
+          `<p class="outcome">Returned ${plural(items.length, "route")}.</p>`,
+        ],
+      });
+    } else {
+      continue;
+    }
+
+    /* Collect Lambda invocations for performance fields under this root */
+    const perfFields = (rf.fields || []).filter((f) => f.name === "performance");
+    items.forEach((item, i) => {
+      perfFields.forEach((pf) => {
+        const month = pf.args.month && pf.args.month.$var ? "$" + pf.args.month.$var : pf.args.month;
+        const thr = pf.args.thresholdMinutes === undefined ? 15 : pf.args.thresholdMinutes;
+        const path = rf.name === "route" ? [rf.alias, pf.alias] : [rf.alias, i, pf.alias];
+        const err = errors.find((e) => e.path && samePath(e.path, path));
+        months.add(month);
+        invocations.push({
+          routeId: (item && item.routeId) || rf.args.routeId || `route ${i + 1}`,
+          alias: pf.alias, month, thr, result: item ? item[pf.alias] : null, err,
+        });
+      });
+    });
+  }
+
+  /* Step: Lambda */
+  if (invocations.length) {
+    const failed = invocations.filter((v) => v.err).length;
+    const rows = invocations.slice(0, 12).map((v) => `<tr><td>${esc(v.routeId)}</td>${invocations.some((x) => x.alias !== "performance") ? `<td>${esc(v.alias)}</td>` : ""}<td>${esc(v.month)}</td><td>${esc(v.thr)} min</td><td>${v.err ? `<span class="err">failed</span>` : v.result && v.result.onTimePct !== undefined ? `${fmt(v.result.onTimePct)}% on time` : "done"}</td></tr>`).join("");
+    const aliasCol = invocations.some((x) => x.alias !== "performance") ? "<th>Field</th>" : "";
+    steps.push({
+      id: "lambda", svc: "lambda", tag: "Lambda", code: "lambda/performance/handler.py",
+      title: `Route.performance calls the Lambda ${plural(invocations.length, "time")}`,
+      status: failed ? "error" : "ok",
+      body: [
+        `<p><code>performance</code> uses a direct Lambda resolver. AppSync invokes <code>${esc(cfg.functionName || "PerformanceFn")}</code> once for every route × performance field${invocations.length > 1 ? ", all in parallel" : ""}. Each call receives the field's arguments <em>and</em> the route item DynamoDB just returned as <code>source</code>. That hand-off is what joins the two data sources.</p>`,
+        `<div class="scroll-x"><table class="inv"><thead><tr><th>Route</th>${aliasCol}<th>Month</th><th>Threshold</th><th>Result</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+        invocations.length > 12 ? `<p>…and ${invocations.length - 12} more.</p>` : "",
+        failed ? invocations.filter((v) => v.err).slice(0, 3).map((v) => `<p class="err">${esc(v.routeId)}: ${esc(v.err.message)}</p>`).join("") : "",
+        `<div class="measured" data-measured="lambda"><p class="pending">${state.cfg && state.cfg.logGroup ? "Waiting for CloudWatch to report real durations and cold starts (a few seconds)…" : "CloudWatch logs aren't available, so durations can't be shown."}</p></div>`,
+      ],
+    });
+
+    /* Step: S3 */
+    const keys = [...months].map((m) => `<code>s3://${esc(cfg.bucketName || "bucket")}/ontime/month=${esc(m)}/flights.csv</code>`).join("<br>");
+    steps.push({
+      id: "s3", svc: "s3", tag: "S3", code: "lambda/performance/calc.py",
+      title: "The Lambda reads flight records from S3 and applies the metric definition",
+      body: [
+        `<p>Each invocation loads the month's file:</p><p>${keys}</p>`,
+        `<p>It keeps only flights for that carrier, origin and destination, then <code>calc.py</code> applies the single governed definition of on time: arrived less than <em>threshold</em> minutes late; cancellations and diversions count as not on time. Files are cached in memory, so a warm Lambda skips the S3 read.</p>`,
+        `<div class="measured" data-measured="s3"></div>`,
+      ],
+    });
+  }
+
+  /* Step: assemble */
+  const fieldErrors = errors.filter((e) => e.path);
+  steps.push({
+    svc: "appsync", tag: "AppSync", title: "AppSync merges everything into one response",
+    status: fieldErrors.length ? "warn" : "ok",
+    body: [
+      `<p>DynamoDB fields and Lambda results come back in exactly the shape the query asked for. The client never learns which store answered which field.</p>`,
+      fieldErrors.length ? `<p class="outcome">${plural(fieldErrors.length, "field")} failed and came back as <code>null</code> with an error. GraphQL still returns everything else: a partial result, not a failed request.</p>` : "",
+      res.elapsedMs !== null ? `<p class="outcome">Round trip: ${res.elapsedMs} ms (measured from the explorer server to AppSync and back).</p>` : "",
+    ],
+  });
+  if (errors.length) trace.ok = false;
+  return trace;
+}
+
+function renderTrace(trace) {
+  const el = $("#trace");
+  el.innerHTML = `<ol class="steps">${trace.steps.map((s, i) => `
+    <li class="${s.status === "error" ? "error" : ""}" style="--svc:var(--${s.svc})" ${s.id ? `data-step="${s.id}"` : ""}>
+      <div class="step-title">${esc(s.title)} <span class="svc-tag">${esc(s.tag)}</span></div>
+      <div class="step-body">${s.body.join("")}
+        ${s.code ? `<button type="button" class="linkish" data-code="${esc(s.code)}">See the code: ${esc(s.code.split("/").pop())}</button>` : ""}
+      </div>
+    </li>`).join("")}</ol>`;
+  $$("[data-code]", el).forEach((b) => b.addEventListener("click", () => { selectTab("code"); showCode(b.dataset.code); $(".bottom").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); }));
+  const total = trace.elapsedMs !== null && trace.elapsedMs !== undefined ? `${trace.elapsedMs} ms round trip` : "";
+  $("#trace-meta").textContent = [total, trace.invocations.length ? plural(trace.invocations.length, "Lambda call") : ""].filter(Boolean).join(", ");
+}
+
+/* =====================================================================
+   Diagram animation
+   ===================================================================== */
+function setBadge(id, text) {
+  const g = $("#" + id); if (!g) return;
+  if (!text) { g.setAttribute("visibility", "hidden"); return; }
+  const t = $("text", g), r = $("rect", g);
+  t.textContent = text;
+  const w = Math.max(40, text.length * 7.2 + 20);
+  const x = Number(r.getAttribute("x"));
+  r.setAttribute("width", w);
+  t.setAttribute("x", x + w / 2); t.setAttribute("text-anchor", "middle");
+  g.setAttribute("visibility", "visible");
+}
+function resetDiagram() {
+  $$("#diagram .node").forEach((n) => n.classList.remove("on", "dim", "waiting"));
+  $$("#diagram .edge").forEach((e) => e.classList.remove("on"));
+  ["b-ddb", "b-lambda", "b-s3", "b-appsync"].forEach((b) => setBadge(b, ""));
+  $("#pulses").innerHTML = "";
+}
+function pulse(edgeId, reverse, ms) {
+  return new Promise((resolve) => {
+    const path = $("#" + edgeId);
+    path.classList.add("on");
+    if (reduceMotion) return resolve();
+    const len = path.getTotalLength();
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("r", 7); c.setAttribute("class", "pulse");
+    $("#pulses").appendChild(c);
+    const t0 = performance.now();
+    function frame(now) {
+      const k = Math.min(1, (now - t0) / ms);
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const pt = path.getPointAtLength((reverse ? 1 - e : e) * len);
+      c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y);
+      if (k < 1) requestAnimationFrame(frame); else { c.remove(); resolve(); }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+const light = (id) => $("#" + id).classList.add("on");
+
+async function animate(trace, runId) {
+  const usesDdb = trace.ddbOps.length > 0;
+  const usesLambda = trace.invocations.length > 0;
+  const live = () => runId === state.runId;
+  light("n-client");
+  await pulse("e-client-appsync", false, 500); if (!live()) return;
+  light("n-appsync");
+  if (trace.rejected || (!usesDdb && !usesLambda)) {
+    ["n-ddb", "n-lambda", "n-s3"].forEach((n) => $("#" + n).classList.add("dim"));
+    setBadge("b-appsync", trace.rejected ? "rejected" : "no data sources");
+    await pulse("e-client-appsync", true, 500);
+    $("#board-status").innerHTML = trace.rejected ? "<b>Stopped at AppSync.</b> The query didn't match the schema." : "Answered by AppSync alone.";
+    return;
+  }
+  if (usesDdb) {
+    const counts = trace.ddbOps.reduce((a, o) => (a[o] = (a[o] || 0) + 1, a), {});
+    setBadge("b-ddb", Object.entries(counts).map(([o, n]) => n > 1 ? `${o} ×${n}` : o).join(", "));
+    await pulse("e-appsync-ddb", false, 450); if (!live()) return;
+    light("n-ddb");
+    await pulse("e-appsync-ddb", true, 400); if (!live()) return;
+  } else $("#n-ddb").classList.add("dim");
+  if (usesLambda) {
+    setBadge("b-lambda", `×${trace.invocations.length} ${trace.invocations.length === 1 ? "call" : "calls"}`);
+    await pulse("e-appsync-lambda", false, 450); if (!live()) return;
+    light("n-lambda");
+    const months = trace.months.size;
+    setBadge("b-s3", `${months} ${months === 1 ? "file" : "files"}`);
+    await pulse("e-lambda-s3", false, 300); if (!live()) return;
+    light("n-s3");
+    await pulse("e-lambda-s3", true, 300); if (!live()) return;
+    await pulse("e-appsync-lambda", true, 400); if (!live()) return;
+  } else { $("#n-lambda").classList.add("dim"); $("#n-s3").classList.add("dim"); }
+  await pulse("e-client-appsync", true, 450); if (!live()) return;
+  const parts = [];
+  if (usesDdb) parts.push("DynamoDB");
+  if (usesLambda) parts.push(`Lambda ×${trace.invocations.length}`, "S3");
+  $("#board-status").innerHTML = `<b>${trace.elapsedMs} ms</b> via AppSync to ${parts.join(", ")}${trace.errors.length ? ", with errors" : ""}`;
+}
+
+/* =====================================================================
+   Lambda logs (real measurements from CloudWatch)
+   ===================================================================== */
+async function pollLogs(runId, startedAt, trace) {
+  const expected = trace.invocations.length;
+  const delays = [2500, 3000, 4000, 6000, 8000];
+  let found = [];
+  for (const d of delays) {
+    await new Promise((r) => setTimeout(r, d));
+    if (runId !== state.runId) return;
+    try {
+      const out = await api(`/api/lambda-logs?since=${startedAt - 1500}`);
+      if (!out.available) { renderLogsUnavailable(); return; }
+      found = out.invocations.filter((v) => v.durationMs !== undefined && v.timestamp >= startedAt - 1500);
+      renderLogs(out, found);
+      if (found.length >= expected) break;
+    } catch (e) {
+      renderLogsUnavailable(e.message); return;
+    }
+  }
+  if (runId !== state.runId) return;
+  updateMeasured(found, expected);
+}
+
+function updateMeasured(found, expected) {
+  const lam = $('[data-measured="lambda"]'), s3 = $('[data-measured="s3"]');
+  if (!lam) return;
+  if (!found.length) { lam.innerHTML = `<p class="pending">CloudWatch hasn't delivered these log lines yet. Check the Lambda logs tab in a moment.</p>`; return; }
+  const cold = found.filter((v) => v.initMs);
+  const durs = found.map((v) => v.durationMs).sort((a, b) => a - b);
+  const envs = new Set(found.map((v) => v.stream)).size;
+  lam.innerHTML = `<p><b>Measured in CloudWatch:</b> ${plural(found.length, "invocation")}${found.length < expected ? ` of ${expected} so far` : ""} across ${plural(envs, "execution environment")}. Handler time ${durs.length > 1 && fmt(durs[0], 0) !== fmt(durs[durs.length - 1], 0) ? `${fmt(durs[0], 0)}–${fmt(durs[durs.length - 1], 0)} ms` : `${fmt(durs[0], 0)} ms`}.
+    ${cold.length ? `<span class="cold">${plural(cold.length, "cold start")}</span> (init ${cold.length > 3 ? `${fmt(Math.min(...cold.map((v) => v.initMs)), 0)}–${fmt(Math.max(...cold.map((v) => v.initMs)), 0)} ms` : cold.map((v) => fmt(v.initMs, 0) + " ms").join(", ")}): AWS had to start a fresh environment first.` : "All warm: no cold starts."}</p>`;
+  if (s3) {
+    const withFields = found.filter((v) => v.fields);
+    const reads = withFields.filter((v) => (v.fields.s3_read || "").startsWith("yes")).length;
+    const cached = withFields.length - reads;
+    const rows = withFields[0] && withFields[0].fields.rows_scanned;
+    s3.innerHTML = withFields.length
+      ? `<p><b>Measured in CloudWatch:</b> ${reads ? `${plural(reads, "invocation")} read the file from S3` : "no S3 reads"}${cached ? `, ${cached} reused the warm in-memory cache` : ""}.${rows ? ` Each scanned ${Number(rows).toLocaleString()} flight records.` : ""}</p>`
+      : found.some((v) => v.errors) || (state.last && state.last.trace.invocations.every((v) => v.err))
+        ? `<p><b>Measured in CloudWatch:</b> the Lambda raised an error before calculating anything. See the message in step ${$$("ol.steps > li").findIndex((li) => li.dataset.step === "lambda") + 1} and the Lambda logs tab.</p>`
+        : `<p class="pending">S3 read details appear after the updated Lambda is deployed (run <code>cdk deploy</code>).</p>`;
+  }
+  const b = found.length ? found.filter((v) => v.fields && (v.fields.s3_read || "").startsWith("yes")).length : 0;
+  if (found.some((v) => v.fields)) setBadge("b-s3", b ? `${b} ${b === 1 ? "read" : "reads"}` : "cached");
+  const coldN = found.filter((v) => v.initMs).length;
+  setBadge("b-lambda", `×${expected} ${expected === 1 ? "call" : "calls"}${coldN ? `, ${coldN} cold` : ""}`);
+}
+
+function renderLogs(out, found) {
+  const el = $("#tab-logs");
+  const rows = found.map((v) => `<tr>
+    <td>${new Date(v.timestamp).toLocaleTimeString()}</td>
+    <td><code>${esc(v.requestId.slice(0, 8))}</code></td>
+    <td>${esc(v.fields ? `${v.fields.route} ${v.fields.month}, ${v.fields.threshold} min` : "–")}</td>
+    <td class="n">${fmt(v.durationMs, 1)} ms</td>
+    <td>${v.initMs ? `<span class="cold">cold, init ${fmt(v.initMs, 0)} ms</span>` : "warm"}</td>
+    <td>${esc(v.fields ? v.fields.s3_read : "–")}</td>
+    <td class="n">${v.maxMemoryUsedMb ?? "–"} / ${v.memoryMb ?? "–"} MB</td></tr>`).join("");
+  el.innerHTML = `
+    <p class="file-note">From CloudWatch log group <code>${esc(state.cfg.logGroup)}</code>. One row per invocation from the last query.</p>
+    ${found.length ? `<div class="scroll-x"><table class="data"><thead><tr><th>Time</th><th>Request</th><th>Route, month, threshold</th><th class="n">Duration</th><th>Start</th><th>S3 read</th><th class="n">Memory used</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="empty">No invocation reports yet. CloudWatch usually delivers them within a few seconds.</p>`}
+    <details style="margin-top:14px"><summary>Raw log lines (${out.raw.length})</summary>
+      <pre class="code" style="margin-top:8px">${esc(out.raw.map((r) => `${new Date(r.timestamp).toLocaleTimeString()}  [${r.stream}]  ${r.message}`).join("\n")) || "(none)"}</pre></details>`;
+}
+function renderLogsUnavailable(msg) {
+  $("#tab-logs").innerHTML = `<p class="empty">Lambda logs aren't available${msg ? `: ${esc(msg)}` : ""}. The explorer needs permission to read CloudWatch Logs (<code>logs:FilterLogEvents</code>) with your AWS credentials.</p>`;
+  const lam = $('[data-measured="lambda"]'); if (lam) lam.innerHTML = `<p class="pending">CloudWatch logs aren't available, so durations can't be shown.</p>`;
+}
+
+/* =====================================================================
+   Answer, JSON and HTTP tabs
+   ===================================================================== */
+function perfAliases(fieldNode) {
+  return (fieldNode && fieldNode.fields ? fieldNode.fields : []).filter((f) => f.name === "performance").map((f) => f);
+}
+function thresholdLabel(pf) {
+  const t = pf.args.thresholdMinutes === undefined ? 15 : pf.args.thresholdMinutes;
+  return { title: `Within ${t} min`, sub: t === 15 ? "US DOT standard" : (pf.alias !== "performance" && !/^within\d+$/.test(pf.alias) ? pf.alias : "") };
+}
+
+function renderAnswer(ast, res) {
+  const el = $("#tab-answer");
+  const resp = res.response || {};
+  const data = resp.data;
+  let html = "";
+  (resp.errors || []).forEach((e) => {
+    html += `<div class="errbox"><p><b>${esc(e.message)}</b></p>${e.path ? `<p class="where">At ${esc(e.path.join(" › "))}${e.errorType ? `, ${esc(e.errorType)}` : ""}</p>` : `<p class="where">AppSync rejected the request${e.errorType ? `: ${esc(e.errorType)}` : ""}.</p>`}</div>`;
+  });
+  if (!data || !ast) { el.innerHTML = html || `<p class="empty">No data returned.</p>`; return; }
+
+  for (const rf of ast.fields) {
+    const val = data[rf.alias];
+    if (val && !Array.isArray(val) && typeof val === "object" && !val.routeId && typeof rf.args.routeId === "string") val.routeId = rf.args.routeId;
+    const perfs = perfAliases(rf);
+    if (val === null) { html += `<p class="empty">No route found for <code>${esc(JSON.stringify(rf.args))}</code>.</p>`; continue; }
+    if (Array.isArray(val)) { html += routesTable(val, perfs); continue; }
+    if (val && typeof val === "object") { html += routeCard(val, perfs); continue; }
+  }
+  el.innerHTML = html || `<p class="empty">Nothing to show visually. See Response JSON.</p>`;
+}
+
+function routeCard(r, perfs) {
+  const title = r.origin && r.destination ? `${r.carrierName || r.carrier || ""} ${r.origin} to ${r.destination}` : (r.routeId || "Route");
+  let html = `<div class="route-head"><h3>${esc(title)}</h3>${r.originCity ? `<span class="cities">${esc(r.originCity)} to ${esc(r.destinationCity)}</span>` : ""}</div>`;
+  const present = perfs.filter((pf) => r[pf.alias]);
+  if (!perfs.length) {
+    const rows = Object.entries(r).filter(([, v]) => typeof v !== "object").map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
+    return html + `<table class="data" style="max-width:520px"><tbody>${rows}</tbody></table>`;
+  }
+  if (!present.length) return html + `<p class="empty">No performance figures came back for this route. See the error above.</p>`;
+  if (present.length === 1) {
+    const p = r[present[0].alias];
+    const lbl = thresholdLabel(present[0]);
+    const kpi = (v, k, hero) => v === undefined ? "" : `<div class="kpi"><div class="v${hero ? " hero" : ""}">${v}</div><div class="k">${k}</div></div>`;
+    html += `<div class="kpis">
+      ${kpi(p.onTimePct !== undefined ? fmt(p.onTimePct) + "%" : undefined, `on time (${lbl.title.toLowerCase()})`, true)}
+      ${kpi(p.flightsOnTime !== undefined ? `${p.flightsOnTime}<small style="font-size:1rem;font-weight:400"> of ${p.flightsScheduled ?? "?"}</small>` : undefined, "flights on time")}
+      ${kpi(p.cancellationPct !== undefined ? fmt(p.cancellationPct) + "%" : undefined, "cancelled")}
+      ${kpi(p.avgArrivalDelayMinutes !== undefined ? fmt(p.avgArrivalDelayMinutes) + " min" : undefined, "average arrival delay")}
+      ${kpi(p.medianArrivalDelayMinutes !== undefined ? fmt(p.medianArrivalDelayMinutes) + " min" : undefined, "median arrival delay")}
+      ${kpi(p.p90ArrivalDelayMinutes !== undefined ? fmt(p.p90ArrivalDelayMinutes) + " min" : undefined, "90% of flights arrive within this delay")}
+    </div>`;
+    if (p.definition) html += `<p class="def"><b>How this was calculated</b>${esc(p.definition)}</p>`;
+  } else if (present.length > 1) {
+    html += `<div class="compare">${present.map((pf) => {
+      const p = r[pf.alias]; const lbl = thresholdLabel(pf);
+      const v = p.onTimePct ?? 0;
+      return `<div class="cmp-row"><div class="lbl">${esc(lbl.title)}${lbl.sub ? `<small>${esc(lbl.sub)}</small>` : ""}</div><div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, v))}%"></div></div><div class="num">${fmt(p.onTimePct)}%</div></div>`;
+    }).join("")}</div>
+    <p class="file-note" style="margin-top:12px">Same flights, same month. Only the definition of "on time" changes, which is why it belongs in one governed place.</p>`;
+  }
+  return html;
+}
+
+function routesTable(items, perfs) {
+  if (!items.length) return `<p class="empty">No routes matched.</p>`;
+  const sample = items[0];
+  const scalarKeys = Object.keys(sample).filter((k) => typeof sample[k] !== "object" && !["carrier", "carrierName", "origin", "destination", "routeId"].includes(k));
+  const hasPerf = perfs.length > 0;
+  const primary = hasPerf ? perfs[0].alias : null;
+  const sorted = hasPerf ? [...items].sort((a, b) => ((b[primary] || {}).onTimePct ?? -1) - ((a[primary] || {}).onTimePct ?? -1)) : items;
+  const head = `<th>Route</th>${scalarKeys.map((k) => `<th>${esc(k)}</th>`).join("")}${perfs.map((pf) => {
+    const lbl = thresholdLabel(pf);
+    const sub = pf.fields.map((f) => f.name);
+    return `<th class="n">On time, ${esc(lbl.title.toLowerCase())}</th>${sub.includes("cancellationPct") && perfs.length === 1 ? `<th class="n">Cancelled</th>` : ""}${sub.includes("p90ArrivalDelayMinutes") && perfs.length === 1 ? `<th class="n">p90 delay</th>` : ""}${sub.includes("flightsScheduled") && perfs.length === 1 ? `<th class="n">Flights</th>` : ""}`;
+  }).join("")}`;
+  const body = sorted.map((r) => `<tr><td><b>${esc(r.carrier || (r.routeId || "").split("-")[0])}</b> ${esc(r.origin || "")}–${esc(r.destination || "")}${r.carrierName ? ` <span style="color:var(--muted)">${esc(r.carrierName)}</span>` : ""}</td>
+    ${scalarKeys.map((k) => `<td>${esc(r[k])}</td>`).join("")}
+    ${perfs.map((pf) => {
+      const p = r[pf.alias] || {}; const sub = pf.fields.map((f) => f.name);
+      return `<td class="n">${fmt(p.onTimePct)}%<span class="mini"><b style="width:${Math.max(0, Math.min(100, p.onTimePct || 0))}%"></b></span></td>${sub.includes("cancellationPct") && perfs.length === 1 ? `<td class="n">${fmt(p.cancellationPct)}%</td>` : ""}${sub.includes("p90ArrivalDelayMinutes") && perfs.length === 1 ? `<td class="n">${fmt(p.p90ArrivalDelayMinutes, 0)} min</td>` : ""}${sub.includes("flightsScheduled") && perfs.length === 1 ? `<td class="n">${p.flightsScheduled ?? "–"}</td>` : ""}`;
+    }).join("")}</tr>`).join("");
+  return `<div class="scroll-x"><table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    ${hasPerf ? `<p class="file-note" style="margin-top:12px">Sorted by on-time performance. Every row's metrics came from its own Lambda call.</p>` : ""}`;
+}
+
+function renderJSON(res) {
+  $("#tab-json").innerHTML = `<pre class="code">${esc(JSON.stringify(res.response, null, 2))}</pre>`;
+}
+function renderHTTP(query, res) {
+  const cfg = state.cfg || {};
+  const req = `POST ${cfg.apiUrl || "<GraphQL endpoint>"}\nContent-Type: application/json\nx-api-key: ${cfg.apiKeyMasked || "…"}\n\n${JSON.stringify({ query }, null, 2)}`;
+  $("#tab-http").innerHTML = `
+    <div class="req-meta"><span>Status <b>${res.status || "no response"}</b></span><span>Round trip <b>${res.elapsedMs ?? "–"} ms</b></span><span>One request, whatever the number of data sources</span></div>
+    <p class="file-note">The explorer server on your machine adds the API key, so it never reaches the browser. Any GraphQL client would send exactly this.</p>
+    <pre class="code">${esc(req)}</pre>`;
+}
+
+/* =====================================================================
+   Code tab
+   ===================================================================== */
+async function showCode(file) {
+  state.codeFile = file;
+  $$("#file-pick button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.f === file)));
+  const view = $("#code-view");
+  if (!state.sources[file]) {
+    view.textContent = "Loading…";
+    try { state.sources[file] = await api(`/api/source?path=${encodeURIComponent(file)}`); }
+    catch (e) { view.textContent = `Couldn't load ${file}: ${e.message}`; return; }
+  }
+  view.innerHTML = String(state.sources[file]).split("\n").map((l, i) => `<span class="ln">${i + 1}</span>${esc(l)}`).join("\n");
+}
+function selectTab(name) {
+  $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  $$(".tabpanel").forEach((p) => { p.hidden = p.id !== "tab-" + name; });
+  if (name === "code" && !$("#code-view").dataset.loaded) { $("#code-view").dataset.loaded = "1"; showCode(state.codeFile); }
+}
+
+/* =====================================================================
+   Init
+   ===================================================================== */
+async function init() {
+  // Static wiring
+  $("#mode-guided").addEventListener("click", () => setMode("guided"));
+  $("#mode-examples").addEventListener("click", () => setMode("examples"));
+  $$('input[name="scope"]').forEach((r) => r.addEventListener("change", () => onGuidedChange()));
+  ["route", "carrier", "month", "compare"].forEach((id) => $("#" + id).addEventListener("change", () => onGuidedChange()));
+  $("#threshold").addEventListener("input", () => onGuidedChange({ run: false }));
+  $("#threshold").addEventListener("change", () => onGuidedChange());
+  $$("#ticks button").forEach((b) => b.addEventListener("click", () => { $("#threshold").value = b.dataset.v; onGuidedChange(); }));
+  $("#run").addEventListener("click", runQuery);
+  $("#editor").addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); runQuery(); }
+    if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      const t = e.target, s = t.selectionStart;
+      t.setRangeText("  ", s, t.selectionEnd, "end");
+    }
+  });
+  $$(".tabs button").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+  $("#file-pick").innerHTML = SOURCE_FILES.map((f) => `<button type="button" data-f="${esc(f)}" aria-pressed="false">${esc(f)}</button>`).join("");
+  $$("#file-pick button").forEach((b) => b.addEventListener("click", () => showCode(b.dataset.f)));
+
+  // Config
+  try {
+    state.cfg = await api("/api/config");
+    const c = state.cfg;
+    $("#conn").innerHTML = `<span class="chip">Connected to ${esc(c.stackName)}</span><span class="chip">${esc(c.region || "region unknown")}</span>${c.logGroup ? `<span class="chip">CloudWatch logs on</span>` : `<span class="chip off">Logs unavailable</span>`}`;
+    if (c.tableName) $("#ddb-sub").textContent = c.tableName.length > 24 ? c.tableName.slice(0, 23) + "…" : c.tableName;
+  } catch (e) {
+    $("#conn").innerHTML = `<span class="chip off">Not connected</span>`;
+    showBanner(`<b>The explorer couldn't load its configuration.</b> Start it with <code>python scripts/explorer.py</code> from the project folder, after <code>cdk deploy</code> has finished. (${esc(e.message)})`);
+  }
+  const months = (state.cfg && state.cfg.months && state.cfg.months.length) ? state.cfg.months : ["2026-07", "2026-08", "2026-09"];
+  $("#month").innerHTML = months.map((m) => {
+    const d = new Date(m + "-01T12:00:00");
+    return `<option value="${m}">${d.toLocaleString("en-US", { month: "long", year: "numeric" })}</option>`;
+  }).join("");
+  $("#month").value = months.includes("2026-08") ? "2026-08" : months[months.length - 1];
+
+  // Examples
+  api("/api/examples").then((ex) => { state.examples = ex; renderExamples(); })
+    .catch(() => { $("#examples").innerHTML = `<li class="empty">Couldn't load examples.</li>`; });
+
+  // Routes for the picker: a real AppSync call (DynamoDB only)
+  try {
+    const out = await api("/api/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: "{ routes { routeId carrier carrierName origin destination } }" }) });
+    const routes = (out.response.data && out.response.data.routes) || [];
+    routes.sort((a, b) => a.routeId.localeCompare(b.routeId));
+    state.routes = routes;
+    $("#route").innerHTML = routes.map((r) => `<option value="${esc(r.routeId)}">${esc(r.carrier)} ${esc(r.origin)} to ${esc(r.destination)}</option>`).join("");
+    if (routes.some((r) => r.routeId === "UA-ORD-LGA")) $("#route").value = "UA-ORD-LGA";
+    const carriers = [...new Map(routes.map((r) => [r.carrier, r.carrierName])).entries()].sort();
+    $("#carrier").innerHTML = `<option value="">All carriers</option>` + carriers.map(([c, n]) => `<option value="${esc(c)}">${esc(n || c)}</option>`).join("");
+  } catch {
+    $("#route").innerHTML = `<option value="UA-ORD-LGA">UA ORD to LGA</option>`;
+  }
+  onGuidedChange({ run: false });
+}
+init();
+</script>
+</body>
+</html>

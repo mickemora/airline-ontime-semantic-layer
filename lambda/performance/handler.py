@@ -57,15 +57,18 @@ def _read_month(month):
 
 
 def load_rows(month):
-    if month not in _month_cache:
-        text = _read_month(month)
-        if text is None:
-            available = ", ".join(_available_months()) or "none"
-            raise ValueError(
-                f"No on-time data for month {month}. Available months: {available}"
-            )
-        _month_cache[month] = list(csv.DictReader(io.StringIO(text)))
-    return _month_cache[month]
+    """Return (rows, cache_hit). Rows stay cached for the life of the
+    Lambda execution environment, so warm invocations skip the S3 read."""
+    if month in _month_cache:
+        return _month_cache[month], True
+    text = _read_month(month)
+    if text is None:
+        available = ", ".join(_available_months()) or "none"
+        raise ValueError(
+            f"No on-time data for month {month}. Available months: {available}"
+        )
+    _month_cache[month] = list(csv.DictReader(io.StringIO(text)))
+    return _month_cache[month], False
 
 
 def handler(event, context):
@@ -77,7 +80,7 @@ def handler(event, context):
         raise ValueError("month must be in YYYY-MM format, e.g. 2026-08")
     threshold = validate_threshold(args.get("thresholdMinutes"))
 
-    rows = load_rows(month)
+    rows, cache_hit = load_rows(month)
     result = compute_performance(
         rows,
         carrier=route["carrier"],
@@ -89,6 +92,7 @@ def handler(event, context):
     result["month"] = month
     print(
         f"performance route={route['routeId']} month={month} "
-        f"threshold={threshold} scheduled={result['flightsScheduled']}"
+        f"threshold={threshold} scheduled={result['flightsScheduled']} "
+        f"rows_scanned={len(rows)} s3_read={'no (warm cache)' if cache_hit else 'yes'}"
     )
     return result
